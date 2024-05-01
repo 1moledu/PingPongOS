@@ -9,10 +9,74 @@
 
 // ****************************************************************************
 
+#include <signal.h>
+#include <sys/time.h>
+
+
+// estrutura que define um tratador de sinal (deve ser global ou static)
+struct sigaction action ;
+
+// estrutura de inicialização to timer
+struct itimerval timer ;
+
+//declaração das funções
+void task_set_eet (task_t *task, int et);
+int task_get_ret(task_t *task);
+int task_get_eet(task_t *task);
+
+task_t * scheduler() {
+    // SRTF scheduler
+    if ( readyQueue != NULL ) {
+        return readyQueue;
+    }
+    return NULL;
+}
+
+
+/*
+Esta função ajusta a
+prioridade com base no tempo de execução total estimado para cada tarefa. Caso task seja
+nulo, ajusta a prioridade da tarefa atual. Quando a tarefa já está em execução, essa função
+deve sobrescrever tanto o valor estimado do tempo de execução como também o valor do
+tempo que ainda resta para a tarefa terminar sua execução.
+*/
+void task_set_eet (task_t *task, int et){
+    //task nulo, então task recebe a tarefa em execução
+    if(task == NULL){
+        task = taskExec;
+    }
+    
+    task->tempoEstimado = et;
+    task->tempoRestante = et - task->tempoDeExecucao;
+}
+
+
+/*
+Esta função devolve o valor do tempo
+restante para terminar a execução da tarefa task (ou da tarefa corrente, se task for nulo).*/
+int task_get_ret(task_t *task){
+    if(task == NULL){
+        return taskExec->tempoRestante;
+    }
+    else{
+        return task->tempoRestante;
+    }
+}
+
+
+//Esta função devolve o valor do tempo
+//estimado de execução da tarefa task (ou da tarefa corrente, se task for nulo).
+int task_get_eet(task_t *task){
+    if(task == NULL)
+        return taskExec->tempoEstimado;
+    else
+        return task->tempoEstimado;
+}
 
 
 void before_ppos_init () {
     // put your customization here
+
 #ifdef DEBUG
     printf("\ninit - BEFORE");
 #endif
@@ -394,14 +458,6 @@ int after_mqueue_msgs (mqueue_t *queue) {
     printf("\nmqueue_msgs - AFTER - [%d]", taskExec->id);
 #endif
     return 0;
-}
-
-task_t * scheduler() {
-    // FCFS scheduler
-    if ( readyQueue != NULL ) {
-        return readyQueue;
-    }
-    return NULL;
 }
 
 

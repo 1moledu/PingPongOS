@@ -47,6 +47,7 @@ void queue_append (queue_t **queue, queue_t *elem){
 
         //se o elem não foi encontrado, então ele está em outra fila
         printf(stderr, "Elemento está em outra fila");
+        return -4;
 
     }
 
@@ -72,7 +73,57 @@ void queue_append (queue_t **queue, queue_t *elem){
 // - o elemento deve pertencer a fila indicada
 // Retorno: apontador para o elemento removido, ou NULL se erro
 
-queue_t *queue_remove (queue_t **queue, queue_t *elem) ;
+queue_t *queue_remove (queue_t **queue, queue_t *elem){
+    
+    if(queue == NULL){
+        fprintf(stderr, "Fila não existe\n");
+        return -1;
+    }
+
+    if(elem == NULL){
+        fprintf(stderr, "Elemento não existe\n");
+        return -2;
+    }
+    else{//verificar se elem está na fila
+
+        //ponteiro auxiliar recebe o primeiro elemento da fila
+        queue_t *aux = *queue;
+        //ponteiros auxiliares dos nós vizinhos ao elemento removido
+        queue_t *auxprev, *auxnext;
+
+        //verificando se o primeiro elemento da fila é igual a elem
+        if(aux == elem){
+            auxprev = elem->prev;
+            auxnext = elem->next;
+            auxprev->next = auxnext;
+            auxnext->prev = auxprev;
+
+            elem = NULL;
+
+            return 0;
+        }
+
+        //verificando as demais posições
+        while(aux->next != (*queue)){
+            if(aux == elem){
+                auxprev = elem->prev;
+                auxnext = elem->next;
+                auxprev->next = auxnext;
+                auxnext->prev = auxprev;
+
+                elem = NULL;
+
+                return 0;
+            }
+        }
+
+        //se o elem não foi encontrado, então ele está em outra fila
+        printf(stderr, "Elemento está em outra fila");
+        return -3;
+    }
+
+
+}
 
 //------------------------------------------------------------------------------
 // Conta o numero de elementos na fila
