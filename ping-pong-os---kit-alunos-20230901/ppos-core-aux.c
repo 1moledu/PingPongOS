@@ -6,11 +6,14 @@
 // Coloque aqui as suas modificações, p.ex. includes, defines variáveis, 
 // estruturas e funções
 
-
-// ****************************************************************************
-
+//#define _XOPEN_SOURCE 700 //compilar o struct sigaction
 #include <signal.h>
 #include <sys/time.h>
+#include <stdlib.h>
+#include <stdio.h>
+
+#define QUANTUM 20;
+
 
 
 // estrutura que define um tratador de sinal (deve ser global ou static)
@@ -18,19 +21,6 @@ struct sigaction action ;
 
 // estrutura de inicialização to timer
 struct itimerval timer ;
-
-//declaração das funções
-void task_set_eet (task_t *task, int et);
-int task_get_ret(task_t *task);
-int task_get_eet(task_t *task);
-
-task_t * scheduler() {
-    // SRTF scheduler
-    if ( readyQueue != NULL ) {
-        return readyQueue;
-    }
-    return NULL;
-}
 
 
 /*
@@ -46,8 +36,10 @@ void task_set_eet (task_t *task, int et){
         task = taskExec;
     }
     
-    task->tempoEstimado = et;
-    task->tempoRestante = et - task->tempoDeExecucao;
+    else if(task == taskExec){
+        task->tempoEstimado = et;
+        task->tempoRestante = et - task->running_time;
+    }
 }
 
 
@@ -74,6 +66,70 @@ int task_get_eet(task_t *task){
 }
 
 
+/*
+Analisa a fila de tarefas prontas, devolvendo um ponteiro para a
+próxima tarefa a receber o processador*/
+task_t * scheduler() {
+    
+    if ( readyQueue == NULL ) {
+        return NULL;
+    }
+    //tarefa auxiliar para iterar a fila circular
+    task_t *tarefaAux = readyQueue;
+
+    //ponteiro para a proxima tarefa a executar
+    task_t *proxTarefa = NULL;
+
+    //Avança para a proxima tarefa da fila
+    tarefaAux = tarefaAux->next;
+
+    //a fila de prontas tem apenas uma tarefa
+    //ou seja readyQueue->next é NULL
+    if(tarefaAux == NULL)
+        return NULL;
+
+    int menorTempoRestante = 99999;
+    int tempoRestanteAtual;
+
+    //percorre a lista de prontas 
+    while(tarefaAux->id != readyQueue->id){
+        
+        tempoRestanteAtual = task_get_ret(tarefaAux);
+            
+        if(tempoRestanteAtual < menorTempoRestante){
+            menorTempoRestante = tempoRestanteAtual;
+            proxTarefa = tarefaAux;
+        }
+        
+        //tarefa a ser mandada para o processador é crítica (dispacher)
+        //ela não poderá ser preemptada no tratador
+        if(proxTarefa->id == taskDisp->id){
+            proxTarefa->ehCritica = 1;
+        }
+        tarefaAux = tarefaAux->next;
+    }
+
+    return proxTarefa;
+}
+
+
+void after_task_create (task_t *task ) {
+    // put your customization here
+    task->quantum = 0;
+    task->running_time = 0;
+    task->tempoEstimado = 99999;
+    task->tempoRestante = 0;
+    task->tempoDeInicio = 0;
+    task->tempoDeFim = 0;
+    task->ehCritica = 0;
+#ifdef DEBUG
+    printf("\ntask_create - AFTER - [%d]", task->id);
+#endif
+}
+
+// ****************************************************************************
+
+
 void before_ppos_init () {
     // put your customization here
 
@@ -93,13 +149,6 @@ void before_task_create (task_t *task ) {
     // put your customization here
 #ifdef DEBUG
     printf("\ntask_create - BEFORE - [%d]", task->id);
-#endif
-}
-
-void after_task_create (task_t *task ) {
-    // put your customization here
-#ifdef DEBUG
-    printf("\ntask_create - AFTER - [%d]", task->id);
 #endif
 }
 

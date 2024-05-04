@@ -26,11 +26,14 @@ typedef struct task_t
 
    // ... (outros campos deve ser adicionados APOS esse comentario)
 
-   int tarefaDeSistema;     //booleano se é tarefa de sistema ou não
+   int ehCritica;         //flag se indica se tarefa é critica (de sistema)
    int tempoEstimado;      //tempo estimado de execução de uma tarefa
    int tempoRestante;      //tempo restante para a execução da tarefa
-   int tempoDeExecucao;   //tempo de execução gasto pela tarefa na CPU
-   
+   int running_time;   //tempo de execução gasto pela tarefa na CPU
+   int quantum;         //fatia de tempo que cada tarefa de usuario recebe
+   int tempoDeInicio;    //qinstante de tempo que a tarefa inciou
+   int tempoDeFim;     //intante de tempo que a tarefa finalizou
+
 } task_t ;
 
 // estrutura que define um semáforo
