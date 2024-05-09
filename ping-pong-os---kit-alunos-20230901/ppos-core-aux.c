@@ -34,7 +34,7 @@ void task_set_eet (task_t *task, int et){
     if(task == NULL){
         task = taskExec;
     }
-    else{
+    else {
         task->tempoEstimado = et;
         //o tempo restante é o tempo estimado menos o tempo que a tarefa já rodou na cpu
         task->tempoRestante = et - task->running_time;
@@ -78,41 +78,48 @@ task_t * scheduler() {
     task_t *tarefaAux = readyQueue;
 
     //ponteiro para a proxima tarefa a executar
-    task_t *proximaTarefa = NULL;
+    task_t *proximaTarefa = readyQueue;
 
     //o menor tempo restante, primeiramente, é o tempo 
     //restante da primeira tarefa da fila
-    int menorTempoRestante = task_get_ret(tarefaAux);
+    int menorTempoRestante = task_get_ret(readyQueue);
     int tempoRestanteAtual;
-
-    //printf("\ntaskid: %d %d :%d",readyQueue->id, readyQueue->tempoEstimado, menorTempoRestante);
-
-    proximaTarefa = tarefaAux;
-
+    
     //Avança para a proxima tarefa da fila para poder entrar no laço
     tarefaAux = tarefaAux->next;
+    
+    //se a primeira tarefa da fila é a taskMain
+    //então temos que setar o valor do menorTempoRestante para o valor do tempo estimado
+    //que todas as tarefas recebem no task_create, para evitar que a taskMain seja mandada 
+    //antes das tarefas de usuario, uma vez que seu temporestante de execução é 0.
+    if(proximaTarefa == taskMain){
+        menorTempoRestante = 99999;
+
+    }
 
     //percorre a fila de prontas 
     while(tarefaAux != readyQueue){
         
         tempoRestanteAtual = task_get_ret(tarefaAux);
         
-        if(tempoRestanteAtual < menorTempoRestante && tarefaAux->id != taskMain->id){
+        //task main só sera mandada ao processador, caso não exista mais tarefas de usuario na fila de prontas
+        if(tempoRestanteAtual < menorTempoRestante && tarefaAux != taskMain){
             menorTempoRestante = tempoRestanteAtual;
             proximaTarefa = tarefaAux;
         }
         
         //se a tarefa a ser mandada para o processador é crítica (dispacher)
         //então, ela não poderá ser preemptada no tratador
-        if(proximaTarefa->id == taskDisp->id){
+        if(proximaTarefa == taskDisp){
             proximaTarefa->ehCritica = 1;
         }
 
         tarefaAux = tarefaAux->next;
+        
+        //if(tarefaAux == readyQueue)
+          //  break;
     }
 
-    
-    //printf("\nSAINDO ID: %d trest: %d", proximaTarefa->id, proximaTarefa->tempoRestante);
     return proximaTarefa;
 }
 
