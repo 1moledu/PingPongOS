@@ -31,8 +31,9 @@ typedef struct task_t
    int tempoRestante;      //tempo restante para a execução da tarefa
    int running_time;   //tempo de execução gasto pela tarefa na CPU
    int quantum;         //fatia de tempo que cada tarefa de usuario recebe
-   int tempoDeInicio;    //qinstante de tempo que a tarefa inciou
+   int tempoDeInicio;    //instante de tempo que a tarefa inciou
    int tempoDeFim;     //intante de tempo que a tarefa finalizou
+   int ativacoes;      // numeros de vezes que a tarefa entro na cpu
 
 } task_t ;
 

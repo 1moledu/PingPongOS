@@ -1,26 +1,25 @@
+#define _XOPEN_SOURCE 700 //habilitar o struct sigaction
 #include "ppos.h"
 #include "ppos-core-globals.h"
+#include "ppos_data.h"
 
 
 // ****************************************************************************
 // Coloque aqui as suas modificações, p.ex. includes, defines variáveis, 
 // estruturas e funções
 
-//#define _XOPEN_SOURCE 700 //compilar o struct sigaction
 #include <signal.h>
 #include <sys/time.h>
-#include <stdlib.h>
-#include <stdio.h>
 
-#define QUANTUM 20;
 
+#define QUANTUM 20; //cada tarefa de usuario tem um quantum de 20ms 
 
 
 // estrutura que define um tratador de sinal (deve ser global ou static)
-struct sigaction action ;
+struct sigaction action;
 
 // estrutura de inicialização to timer
-struct itimerval timer ;
+struct itimerval timer;
 
 
 /*
@@ -35,9 +34,9 @@ void task_set_eet (task_t *task, int et){
     if(task == NULL){
         task = taskExec;
     }
-    
-    else if(task == taskExec){
+    else{
         task->tempoEstimado = et;
+        //o tempo restante é o tempo estimado menos o tempo que a tarefa já rodou na cpu
         task->tempoRestante = et - task->running_time;
     }
 }
@@ -71,61 +70,149 @@ Analisa a fila de tarefas prontas, devolvendo um ponteiro para a
 próxima tarefa a receber o processador*/
 task_t * scheduler() {
     
-    if ( readyQueue == NULL ) {
+    if (readyQueue == NULL) {
         return NULL;
     }
+    
     //tarefa auxiliar para iterar a fila circular
     task_t *tarefaAux = readyQueue;
 
     //ponteiro para a proxima tarefa a executar
-    task_t *proxTarefa = NULL;
+    task_t *proximaTarefa = NULL;
 
-    //Avança para a proxima tarefa da fila
-    tarefaAux = tarefaAux->next;
-
-    //a fila de prontas tem apenas uma tarefa
-    //ou seja readyQueue->next é NULL
-    if(tarefaAux == NULL)
-        return NULL;
-
-    int menorTempoRestante = 99999;
+    //o menor tempo restante, primeiramente, é o tempo 
+    //restante da primeira tarefa da fila
+    int menorTempoRestante = task_get_ret(tarefaAux);
     int tempoRestanteAtual;
 
-    //percorre a lista de prontas 
-    while(tarefaAux->id != readyQueue->id){
+    //printf("\ntaskid: %d %d :%d",readyQueue->id, readyQueue->tempoEstimado, menorTempoRestante);
+
+    proximaTarefa = tarefaAux;
+
+    //Avança para a proxima tarefa da fila para poder entrar no laço
+    tarefaAux = tarefaAux->next;
+
+    //percorre a fila de prontas 
+    while(tarefaAux != readyQueue){
         
         tempoRestanteAtual = task_get_ret(tarefaAux);
-            
-        if(tempoRestanteAtual < menorTempoRestante){
+        
+        if(tempoRestanteAtual < menorTempoRestante && tarefaAux->id != taskMain->id){
             menorTempoRestante = tempoRestanteAtual;
-            proxTarefa = tarefaAux;
+            proximaTarefa = tarefaAux;
         }
         
-        //tarefa a ser mandada para o processador é crítica (dispacher)
-        //ela não poderá ser preemptada no tratador
-        if(proxTarefa->id == taskDisp->id){
-            proxTarefa->ehCritica = 1;
+        //se a tarefa a ser mandada para o processador é crítica (dispacher)
+        //então, ela não poderá ser preemptada no tratador
+        if(proximaTarefa->id == taskDisp->id){
+            proximaTarefa->ehCritica = 1;
         }
+
         tarefaAux = tarefaAux->next;
     }
 
-    return proxTarefa;
+    
+    //printf("\nSAINDO ID: %d trest: %d", proximaTarefa->id, proximaTarefa->tempoRestante);
+    return proximaTarefa;
+}
+
+void tratador(){
+
+    //contador global do sistema é incrementado
+    systemTime++;
+
+    //a rotina de tratamento de ticks de relógio deve decrementar o contador de
+    //quantum da tarefa corrente, se for uma tarefa de usuário
+    if(taskExec->ehCritica == 0){
+        //se quantum esgotou, então a tarefa corrente é preemptada
+        if(taskExec->quantum == 0){
+            //antes da preempção, setamos o quantum da tarefa pro valor definido
+            taskExec->quantum = QUANTUM;
+            task_yield();
+        }
+        else{
+            taskExec->quantum--;
+        }
+    }
+
+    //incrementando o tempo de execução no processador
+    taskExec->running_time++;
+
 }
 
 
 void after_task_create (task_t *task ) {
     // put your customization here
-    task->quantum = 0;
+    task->quantum = QUANTUM;
     task->running_time = 0;
     task->tempoEstimado = 99999;
     task->tempoRestante = 0;
-    task->tempoDeInicio = 0;
+    task->tempoDeInicio = systime();
     task->tempoDeFim = 0;
     task->ehCritica = 0;
+    task->ativacoes = 0;
+
 #ifdef DEBUG
     printf("\ntask_create - AFTER - [%d]", task->id);
 #endif
 }
+
+
+void after_ppos_init () {
+    
+    systemTime = 0;
+
+    // registra a ação para o sinal de timer SIGALRM
+    action.sa_handler = tratador;
+    sigemptyset (&action.sa_mask);
+    action.sa_flags = 0;
+    if (sigaction (SIGALRM, &action, 0) < 0)
+    {
+        perror ("Erro em sigaction: ");
+        exit (1);
+    }
+
+    // ajusta valores do temporizador
+    timer.it_value.tv_usec = 1000;      // primeiro disparo, em micro-segundos
+    timer.it_value.tv_sec  = 0;      // primeiro disparo, em segundos
+    timer.it_interval.tv_usec = 1000;   // disparos subsequentes, em micro-segundos
+    timer.it_interval.tv_sec  = 0;   // disparos subsequentes, em segundos
+
+    // arma o temporizador ITIMER_REAL (vide man setitimer)
+    if (setitimer (ITIMER_REAL, &timer, 0) < 0)
+    {
+        perror ("Erro em setitimer: ") ;
+        exit (1) ;
+    }
+
+
+#ifdef DEBUG
+    printf("\ninit - AFTER");
+#endif
+}
+
+
+void after_task_exit () {
+    
+    taskExec->tempoDeFim = systime();
+
+    printf("\nTask %d exit: execution time %d ms, processor time %d ms, %d activations \n", 
+            taskExec->id, taskExec->tempoDeFim - taskExec->tempoDeInicio, taskExec->running_time, taskExec->ativacoes);
+
+#ifdef DEBUG
+    printf("\ntask_exit - AFTER- [%d]", taskExec->id);
+#endif
+}
+
+//task_switch realiza a troca de contexto
+void after_task_switch ( task_t *task ) {
+    // put your customization here
+    taskExec->ativacoes++; //quantas vezes a tarefa entrou na CPU
+#ifdef DEBUG
+    printf("\ntask_switch - AFTER - [%d -> %d]", taskExec->id, task->id);
+#endif
+}
+
 
 // ****************************************************************************
 
@@ -135,13 +222,6 @@ void before_ppos_init () {
 
 #ifdef DEBUG
     printf("\ninit - BEFORE");
-#endif
-}
-
-void after_ppos_init () {
-    // put your customization here
-#ifdef DEBUG
-    printf("\ninit - AFTER");
 #endif
 }
 
@@ -159,13 +239,6 @@ void before_task_exit () {
 #endif
 }
 
-void after_task_exit () {
-    // put your customization here
-#ifdef DEBUG
-    printf("\ntask_exit - AFTER- [%d]", taskExec->id);
-#endif
-}
-
 void before_task_switch ( task_t *task ) {
     // put your customization here
 #ifdef DEBUG
@@ -173,26 +246,19 @@ void before_task_switch ( task_t *task ) {
 #endif
 }
 
-void after_task_switch ( task_t *task ) {
-    // put your customization here
-#ifdef DEBUG
-    printf("\ntask_switch - AFTER - [%d -> %d]", taskExec->id, task->id);
-#endif
-}
-
 void before_task_yield () {
-    // put your customization here
+    // put your customization here 
 #ifdef DEBUG
     printf("\ntask_yield - BEFORE - [%d]", taskExec->id);
 #endif
 }
+
 void after_task_yield () {
     // put your customization here
 #ifdef DEBUG
     printf("\ntask_yield - AFTER - [%d]", taskExec->id);
 #endif
 }
-
 
 void before_task_suspend( task_t *task ) {
     // put your customization here
