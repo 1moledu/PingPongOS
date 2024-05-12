@@ -32,7 +32,7 @@ typedef struct task_t
    int running_time;   //tempo de execução gasto pela tarefa na CPU
    int quantum;         //fatia de tempo que cada tarefa de usuario recebe
    int ativacoes;      // número de vezes que a tarefa entrou na cpu
-   int tempoDeEspera;   //tempo da esperando na fila de prontas para executar
+   int tempoDeEspera;   //tempo da tarefa esperando na fila de prontas para executar
 
 } task_t ;
 

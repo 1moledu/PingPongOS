@@ -23,11 +23,10 @@ struct itimerval timer;
 
 
 /*
-Esta função ajusta a
-prioridade com base no tempo de execução total estimado para cada tarefa. Caso task seja
-nulo, ajusta a prioridade da tarefa atual. Quando a tarefa já está em execução, essa função
-deve sobrescrever tanto o valor estimado do tempo de execução como também o valor do
-tempo que ainda resta para a tarefa terminar sua execução.
+Esta função ajusta aprioridade com base no tempo de execução total estimado para cada tarefa. 
+Caso task seja nulo, ajusta a prioridade da tarefa atual. Quando a tarefa já está em execução,
+essa função deve sobrescrever tanto o valor estimado do tempo de execução como também 
+o valor do tempo que ainda resta para a tarefa terminar sua execução.
 */
 void task_set_eet (task_t *task, int et){
     //se task for nulo, então taskExec tem seu tempo estimado e restante modificados
@@ -117,34 +116,39 @@ task_t * scheduler() {
 
 /*
 Incrementa o tempo de espera para todas as tarefas da fila de prontas
-exceto para a tarefa em execução
+ou seja, todas as tarefas que não estão executando na CPU
 */
-void calculaTempoDeEspera(){
+void incrementaTempoDeEspera(){
 
-    task_t *aux = readyQueue;
+    task_t *tarefaAux = readyQueue;
 
-    //verifica se a fila esta vazia
-    if(readyQueue == NULL)
-        return;
+    //verifica se a fila nao esta vazia
+    if(readyQueue != NULL){
+    
+        tarefaAux = tarefaAux->next;
 
-    aux = aux->next;
+        while(tarefaAux != readyQueue){
 
-    while(aux != readyQueue){
+            tarefaAux->tempoDeEspera++;
 
-        if(aux != taskExec)
-            aux->tempoDeEspera++;
+            tarefaAux = tarefaAux->next;
+        }
 
-        aux = aux->next;
+        //quando a fila de prontas tem somente uma tarefa
+        tarefaAux->tempoDeEspera++;
+
     }
-
-    //quando a fila só tem uma tarefa
-    if(aux != taskExec)
-        aux->tempoDeEspera++;
 }
 
+
+/*
+a cada disparo do temporizador, o tratador decrementa o quantum e
+incrementa o running_time da tarefa corrente. Além disso, incrementa
+o tempo de espera das demais tarefas 
+*/
 void tratador(){
 
-    //contador global do sistema é incrementado
+    //contador global do sistema é incrementado 
     systemTime++;
     
     //a rotina de tratamento de ticks de relógio deve decrementar o contador de
@@ -162,7 +166,7 @@ void tratador(){
         }
     }
 
-    calculaTempoDeEspera();
+    incrementaTempoDeEspera();
     //incrementando o tempo de execução no processador
     taskExec->running_time++;
 
@@ -229,4 +233,6 @@ void before_task_exit () {
 #endif
 }
 
+
 // ****************************************************************************
+
