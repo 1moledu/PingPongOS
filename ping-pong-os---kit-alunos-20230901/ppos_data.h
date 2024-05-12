@@ -26,14 +26,13 @@ typedef struct task_t
 
    // ... (outros campos deve ser adicionados APOS esse comentario)
 
-   int ehCritica;         //flag se indica se tarefa é critica (de sistema)
-   int tempoEstimado;      //tempo estimado de execução de uma tarefa
+   int tarefaCritica;         //flag que indica se a tarefa é critica (de sistema)
+   int tempoEstimado;      //tempo estimado de execução de uma tarefa na cpu
    int tempoRestante;      //tempo restante para a execução da tarefa
    int running_time;   //tempo de execução gasto pela tarefa na CPU
    int quantum;         //fatia de tempo que cada tarefa de usuario recebe
-   int tempoDeInicio;    //instante de tempo que a tarefa inciou
-   int tempoDeFim;     //intante de tempo que a tarefa finalizou
-   int ativacoes;      // numeros de vezes que a tarefa entro na cpu
+   int ativacoes;      // número de vezes que a tarefa entrou na cpu
+   int tempoDeEspera;   //tempo da esperando na fila de prontas para executar
 
 } task_t ;
 

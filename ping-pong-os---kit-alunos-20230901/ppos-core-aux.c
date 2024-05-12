@@ -30,9 +30,10 @@ deve sobrescrever tanto o valor estimado do tempo de execução como também o v
 tempo que ainda resta para a tarefa terminar sua execução.
 */
 void task_set_eet (task_t *task, int et){
-    //task nulo, então task recebe a tarefa em execução
+    //se task for nulo, então taskExec tem seu tempo estimado e restante modificados
     if(task == NULL){
-        task = taskExec;
+        taskExec->tempoEstimado = et;
+        taskExec->tempoRestante = et - taskExec->running_time;
     }
     else {
         task->tempoEstimado = et;
@@ -80,57 +81,75 @@ task_t * scheduler() {
     //ponteiro para a proxima tarefa a executar
     task_t *proximaTarefa = readyQueue;
 
-    //o menor tempo restante, primeiramente, é o tempo 
-    //restante da primeira tarefa da fila
-    int menorTempoRestante = task_get_ret(readyQueue);
+    int menorTempoRestante;
     int tempoRestanteAtual;
     
-    //Avança para a proxima tarefa da fila para poder entrar no laço
-    tarefaAux = tarefaAux->next;
-    
-    //se a primeira tarefa da fila é a taskMain
-    //então temos que setar o valor do menorTempoRestante para o valor do tempo estimado
-    //que todas as tarefas recebem no task_create, para evitar que a taskMain seja mandada 
-    //antes das tarefas de usuario, uma vez que seu temporestante de execução é 0.
-    if(proximaTarefa == taskMain){
-        menorTempoRestante = 99999;
+    //o menor tempo restante, primeiramente, é o tempo 
+    //restante da primeira tarefa da fila
+    menorTempoRestante = task_get_ret(proximaTarefa);
 
-    }
+    //taskMain só será mandada ao processador, caso não exista mais tarefas de usuario na fila
+    task_set_eet(taskMain, 99999);
 
-    //percorre a fila de prontas 
-    while(tarefaAux != readyQueue){
-        
+    while(tarefaAux->next != readyQueue){
+
+        tarefaAux = tarefaAux->next;
+
         tempoRestanteAtual = task_get_ret(tarefaAux);
-        
-        //task main só sera mandada ao processador, caso não exista mais tarefas de usuario na fila de prontas
-        if(tempoRestanteAtual < menorTempoRestante && tarefaAux != taskMain){
+
+        if(tempoRestanteAtual < menorTempoRestante){
             menorTempoRestante = tempoRestanteAtual;
             proximaTarefa = tarefaAux;
         }
-        
+
         //se a tarefa a ser mandada para o processador é crítica (dispacher)
         //então, ela não poderá ser preemptada no tratador
         if(proximaTarefa == taskDisp){
-            proximaTarefa->ehCritica = 1;
+            proximaTarefa->tarefaCritica = 1;
         }
-
-        tarefaAux = tarefaAux->next;
-        
-        //if(tarefaAux == readyQueue)
-          //  break;
     }
 
+    //tarefa vai receber o processador
+    proximaTarefa->ativacoes++;
+
     return proximaTarefa;
+}
+
+/*
+Incrementa o tempo de espera para todas as tarefas da fila de prontas
+exceto para a tarefa em execução
+*/
+void calculaTempoDeEspera(){
+
+    task_t *aux = readyQueue;
+
+    //verifica se a fila esta vazia
+    if(readyQueue == NULL)
+        return;
+
+    aux = aux->next;
+
+    while(aux != readyQueue){
+
+        if(aux != taskExec)
+            aux->tempoDeEspera++;
+
+        aux = aux->next;
+    }
+
+    //quando a fila só tem uma tarefa
+    if(aux != taskExec)
+        aux->tempoDeEspera++;
 }
 
 void tratador(){
 
     //contador global do sistema é incrementado
     systemTime++;
-
+    
     //a rotina de tratamento de ticks de relógio deve decrementar o contador de
     //quantum da tarefa corrente, se for uma tarefa de usuário
-    if(taskExec->ehCritica == 0){
+    if(taskExec->tarefaCritica == 0){
         //se quantum esgotou, então a tarefa corrente é preemptada
         if(taskExec->quantum == 0){
             //antes da preempção, setamos o quantum da tarefa pro valor definido
@@ -139,9 +158,11 @@ void tratador(){
         }
         else{
             taskExec->quantum--;
+            
         }
     }
 
+    calculaTempoDeEspera();
     //incrementando o tempo de execução no processador
     taskExec->running_time++;
 
@@ -154,9 +175,8 @@ void after_task_create (task_t *task ) {
     task->running_time = 0;
     task->tempoEstimado = 99999;
     task->tempoRestante = 0;
-    task->tempoDeInicio = systime();
-    task->tempoDeFim = 0;
-    task->ehCritica = 0;
+    task->tempoDeEspera = 0;
+    task->tarefaCritica = 0;
     task->ativacoes = 0;
 
 #ifdef DEBUG
@@ -199,24 +219,13 @@ void after_ppos_init () {
 }
 
 
-void after_task_exit () {
+void before_task_exit () {
     
-    taskExec->tempoDeFim = systime();
-
     printf("\nTask %d exit: execution time %d ms, processor time %d ms, %d activations \n", 
-            taskExec->id, taskExec->tempoDeFim - taskExec->tempoDeInicio, taskExec->running_time, taskExec->ativacoes);
+            taskExec->id, taskExec->running_time + taskExec->tempoDeEspera, taskExec->running_time, taskExec->ativacoes);
 
 #ifdef DEBUG
-    printf("\ntask_exit - AFTER- [%d]", taskExec->id);
-#endif
-}
-
-//task_switch realiza a troca de contexto
-void after_task_switch ( task_t *task ) {
-    // put your customization here
-    taskExec->ativacoes++; //quantas vezes a tarefa entrou na CPU
-#ifdef DEBUG
-    printf("\ntask_switch - AFTER - [%d -> %d]", taskExec->id, task->id);
+    printf("\ntask_exit - BEFORE- [%d]", taskExec->id);
 #endif
 }
 
@@ -239,10 +248,10 @@ void before_task_create (task_t *task ) {
 #endif
 }
 
-void before_task_exit () {
+void after_task_exit () {
     // put your customization here
 #ifdef DEBUG
-    printf("\ntask_exit - BEFORE - [%d]", taskExec->id);
+    printf("\ntask_exit - AFTER - [%d]", taskExec->id);
 #endif
 }
 
@@ -250,6 +259,13 @@ void before_task_switch ( task_t *task ) {
     // put your customization here
 #ifdef DEBUG
     printf("\ntask_switch - BEFORE - [%d -> %d]", taskExec->id, task->id);
+#endif
+}
+
+void after_task_switch ( task_t *task ) {
+    // put your customization here
+#ifdef DEBUG
+    printf("\ntask_switch - AFTER - [%d -> %d]", taskExec->id, task->id);
 #endif
 }
 
