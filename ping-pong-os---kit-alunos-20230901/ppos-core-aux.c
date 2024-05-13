@@ -87,8 +87,7 @@ task_t * scheduler() {
     //restante da primeira tarefa da fila
     menorTempoRestante = task_get_ret(proximaTarefa);
 
-    //taskMain só será mandada ao processador, caso não exista mais tarefas de usuario na fila
-    task_set_eet(taskMain, 99999);
+    
 
     while(tarefaAux->next != readyQueue){
 
@@ -108,7 +107,7 @@ task_t * scheduler() {
         }
     }
 
-    //tarefa vai receber o processador
+    //a tarefa vai receber o processador
     proximaTarefa->ativacoes++;
 
     return proximaTarefa;
@@ -134,7 +133,7 @@ void incrementaTempoDeEspera(){
             tarefaAux = tarefaAux->next;
         }
 
-        //quando a fila de prontas tem somente uma tarefa
+        //para a primeira tarefa da fila
         tarefaAux->tempoDeEspera++;
 
     }
@@ -162,9 +161,10 @@ void tratador(){
         }
         else{
             taskExec->quantum--;
-            
         }
     }
+
+    
 
     incrementaTempoDeEspera();
     //incrementando o tempo de execução no processador
@@ -182,6 +182,7 @@ void after_task_create (task_t *task ) {
     task->tempoDeEspera = 0;
     task->tarefaCritica = 0;
     task->ativacoes = 0;
+    task->inicio = systime();
 
 #ifdef DEBUG
     printf("\ntask_create - AFTER - [%d]", task->id);
@@ -192,6 +193,9 @@ void after_task_create (task_t *task ) {
 void after_ppos_init () {
     
     systemTime = 0;
+
+    //taskMain só será mandada ao processador, caso não exista mais tarefas de usuario na fila
+    task_set_eet(taskMain, 99999);
 
     // registra a ação para o sinal de timer SIGALRM
     action.sa_handler = tratador;
@@ -224,6 +228,9 @@ void after_ppos_init () {
 
 
 void before_task_exit () {
+    
+    if(taskExec->running_time == taskExec->tempoEstimado)
+        printf("\nTarefa %d acabou sua execução", taskExec->id);
     
     printf("\nTask %d exit: execution time %d ms, processor time %d ms, %d activations \n", 
             taskExec->id, taskExec->running_time + taskExec->tempoDeEspera, taskExec->running_time, taskExec->ativacoes);
@@ -601,5 +608,4 @@ int after_mqueue_msgs (mqueue_t *queue) {
 #endif
     return 0;
 }
-
 
